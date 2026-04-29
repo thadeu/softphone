@@ -1,3 +1,5 @@
+import { randomId } from "./randomId";
+
 export type RegistrationState =
   | "disconnected"
   | "connecting"
@@ -48,8 +50,6 @@ type JsonRpcMessage = {
   result?: unknown;
   error?: { code: number; message: string };
 };
-
-const randomId = () => crypto.randomUUID();
 
 /**
  * FreeSWITCH/mod_verto INVITE SDP often includes telecom-only attributes (e.g. a=silenceSupp)
@@ -140,13 +140,17 @@ export class VertoClient {
 
     this.events.onRegistrationState("connecting");
     this.ws = new WebSocket(this.cfg.websocketUrl);
+
     this.ws.onopen = () => {
       this.events.onLog("WebSocket connected");
+    
       const loginStr = this.cfg.loginUserOnly
         ? user
         : `${user}@${domain}`;
-      this.events.onLog(`login string: ${loginStr}`);
-      this.send("login", {
+    
+        this.events.onLog(`login string: ${loginStr}`);
+    
+        this.send("login", {
         login: loginStr,
         passwd: this.cfg.password,
         sessid: this.sessid,
@@ -154,15 +158,22 @@ export class VertoClient {
         loginParams: {},
       });
     };
+
     this.ws.onclose = (evt) => {
       this.events.onRegistrationState("disconnected");
       this.events.onCallState("idle");
       this.cleanupPeer();
       this.events.onLog(`WebSocket disconnected (code=${evt.code} reason=${evt.reason || "n/a"} clean=${evt.wasClean})`);
+    
+      if (evt.code === 1006) {
+        this.events.onLog(
+          "hint 1006: host/port unreachable, ws/wss mismatch vs FreeSWITCH, firewall blocking inbound, or Verto bound to 127.0.0.1 only — from remote machine try: nc -vz HOST PORT",
+        );
+      }
     };
     this.ws.onerror = () => {
       this.events.onRegistrationState("failed", "websocket error");
-      this.events.onLog("WebSocket error");
+      this.events.onLog(`WebSocket error url=${this.cfg.websocketUrl}`);
     };
     this.ws.onmessage = async (evt) => {
       const data = JSON.parse(String(evt.data)) as JsonRpcMessage;

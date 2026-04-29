@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite --host && socat TCP-LISTEN:8081,bind=0.0.0.0,reuseaddr,fork TCP:192.168.105.6:8081",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

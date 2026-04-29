@@ -19,6 +19,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
+import { randomId } from "./lib/randomId";
 import { VertoClient } from "./lib/vertoClient";
 import type {
   CallState,
@@ -260,7 +261,7 @@ function App() {
     }
 
     const record: CallRecord = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       account: accountKey,
       number: clean,
       name: name?.trim() || clean,
