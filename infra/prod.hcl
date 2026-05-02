@@ -1,9 +1,9 @@
 deployment "softphone" "web" {
-  replicas = 1
+  replicas = 3
 }
 
 ingress "softphone" "web" {
-  host = "v0.softphone.lvh.me"
+  host = "app.softphone.lvh.me"
 
   tls {
     enabled = true
