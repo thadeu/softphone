@@ -1,0 +1,11 @@
+{
+  "scope": "soft",
+  "ingress": {
+    "web": {
+      "host": "${API_HOST:-beta.softphone.lvh.me}",
+      "tls": {
+        "email": "ops@myemail.com"
+      }
+    }
+  }
+}

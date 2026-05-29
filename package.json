@@ -3,9 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "bun",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc -b && vite build",
+    "start": "bun run build && serve dist",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -14,6 +16,7 @@
     "lucide-react": "^1.8.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "serve": "^14.2.6",
     "verto": "^0.1.1"
   },
   "devDependencies": {
