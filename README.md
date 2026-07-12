@@ -1,5 +1,9 @@
 # softphone
 
+[![ghcr](https://github.com/thadeu/softphone/actions/workflows/ghcr.yml/badge.svg)](https://github.com/thadeu/softphone/actions/workflows/ghcr.yml)
+[![release](https://img.shields.io/github/v/release/thadeu/softphone?sort=semver)](https://github.com/thadeu/softphone/releases)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-thadeu%2Fsoftphone-blue)](https://github.com/thadeu/softphone/pkgs/container/softphone)
+
 Browser softphone for FreeSWITCH via Verto (`mod_verto`). Static SPA (React + Vite), served by nginx in production.
 
 ## Requirements
