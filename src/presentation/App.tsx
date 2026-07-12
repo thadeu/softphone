@@ -19,153 +19,13 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import { randomId } from "./lib/randomId";
-import { VertoClient } from "./lib/vertoClient";
-import type {
-  CallState,
-  IncomingCall,
-  RegistrationState,
-} from "./lib/vertoClient";
-import { IncomingRingTone } from "./lib/ringTone";
-import { db } from "./lib/db";
-import type { CallRecord } from "./lib/db";
-
-type SettingsData = {
-  websocketUrl: string;
-  domain: string;
-  username: string;
-  password: string;
-  loginUserOnly: boolean;
-  audioInputDeviceId: string;
-  audioOutputDeviceId: string;
-};
-
-const LEGACY_SETTINGS_KEY = "softphone.verto.settings";
-const SESSION_STORAGE_KEY = "softphone.verto.session";
-const MEDIA_STORAGE_KEY = "softphone.verto.media";
-
-type SessionCredentials = Pick<
-  SettingsData,
-  "websocketUrl" | "domain" | "username" | "password" | "loginUserOnly"
->;
-
-const defaultSettings: SettingsData = {
-  websocketUrl: "",
-  domain: "default",
-  username: "",
-  password: "",
-  loginUserOnly: false,
-  audioInputDeviceId: "",
-  audioOutputDeviceId: "",
-};
-
-function readSession(): Partial<SessionCredentials> | null {
-  const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as Partial<SessionCredentials>;
-  } catch {
-    return null;
-  }
-}
-
-function writeSession(creds: SessionCredentials): void {
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(creds));
-}
-
-function clearSessionStorage(): void {
-  localStorage.removeItem(SESSION_STORAGE_KEY);
-}
-
-function readMedia(): Pick<SettingsData, "audioInputDeviceId" | "audioOutputDeviceId"> {
-  const raw = localStorage.getItem(MEDIA_STORAGE_KEY);
-
-  if (!raw) {
-    return { audioInputDeviceId: "", audioOutputDeviceId: "" };
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<SettingsData>;
-
-    return {
-      audioInputDeviceId: typeof parsed.audioInputDeviceId === "string" ? parsed.audioInputDeviceId : "",
-      audioOutputDeviceId:
-        typeof parsed.audioOutputDeviceId === "string" ? parsed.audioOutputDeviceId : "",
-    };
-  } catch {
-    return { audioInputDeviceId: "", audioOutputDeviceId: "" };
-  }
-}
-
-function writeMedia(media: Pick<SettingsData, "audioInputDeviceId" | "audioOutputDeviceId">): void {
-  localStorage.setItem(MEDIA_STORAGE_KEY, JSON.stringify(media));
-}
-
-function migrateLegacySettingsIfNeeded(): void {
-  if (localStorage.getItem(SESSION_STORAGE_KEY)) return;
-
-  const raw = localStorage.getItem(LEGACY_SETTINGS_KEY);
-
-  if (!raw) return;
-
-  try {
-    const parsed = { ...defaultSettings, ...(JSON.parse(raw) as Partial<SettingsData>) };
-    const ws = parsed.websocketUrl.trim();
-    const user = parsed.username.trim();
-    const pass = parsed.password;
-
-    if (ws && user && pass.trim()) {
-      writeSession({
-        websocketUrl: parsed.websocketUrl,
-        domain: parsed.domain,
-        username: parsed.username,
-        password: parsed.password,
-        loginUserOnly: parsed.loginUserOnly,
-      });
-    }
-
-    writeMedia({
-      audioInputDeviceId: parsed.audioInputDeviceId,
-      audioOutputDeviceId: parsed.audioOutputDeviceId,
-    });
-  } catch {
-    // ignore invalid legacy payload
-  }
-
-  localStorage.removeItem(LEGACY_SETTINGS_KEY);
-}
+import { useSoftphone } from "./hooks/useSoftphone";
 
 const AVATAR_COLORS = [
   "#34c759", "#2d5bf0", "#ff9500", "#af52de",
   "#ff3b30", "#5856d6", "#007aff", "#ff2d55",
   "#30b0c7", "#a2845e",
 ];
-
-function loadSettings(): SettingsData {
-  migrateLegacySettingsIfNeeded();
-
-  const session = readSession();
-  const media = readMedia();
-
-  return {
-    ...defaultSettings,
-    ...(session ?? {}),
-    ...media,
-  };
-}
-
-function hasPersistedSession(s: SettingsData): boolean {
-  const ws = s.websocketUrl.trim();
-  const user = s.username.trim();
-  const pass = s.password.trim();
-  const domainOk = s.loginUserOnly || s.domain.trim().length > 0;
-
-  return Boolean(ws && user && pass && domainOk);
-}
-
-let persistedSessionAutoConnectStarted = false;
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -187,42 +47,78 @@ function hashColor(str: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+const TRANSFER_SHORTCODE = {
+  consult: "*95",
+  blind: "*96",
+  return: "*98",
+} as const;
+
+type TransferKind = keyof typeof TRANSFER_SHORTCODE;
+
+const TRANSFER_META: Record<TransferKind, { title: string; subtitle: string }> = {
+  consult: { title: "Consult transfer", subtitle: "Shortcode *95 — enter extension" },
+  blind: { title: "Blind transfer", subtitle: "Shortcode *96 — enter extension" },
+  return: { title: "Return transfer", subtitle: "Shortcode *98 — enter extension" },
+};
+
+const dialPadKeys = [
+  ["1", ""],
+  ["2", "ABC"],
+  ["3", "DEF"],
+  ["4", "GHI"],
+  ["5", "JKL"],
+  ["6", "MNO"],
+  ["7", "PQRS"],
+  ["8", "TUV"],
+  ["9", "WXYZ"],
+  ["*", ""],
+  ["0", "+"],
+  ["#", ""],
+];
+
 function App() {
-  const [settings, setSettings] = useState<SettingsData>(loadSettings);
-  const [registrationState, setRegistrationState] =
-    useState<RegistrationState>("disconnected");
-  const [callState, setCallState] = useState<CallState>("idle");
-  const [number, setNumber] = useState("");
-  const [muted, setMuted] = useState(false);
-  const [incoming, setIncoming] = useState<IncomingCall | null>(null);
-  const [recentCalls, setRecentCalls] = useState<CallRecord[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
+  const {
+    settings,
+    setSettings,
+    registrationState,
+    callState,
+    number,
+    setNumber,
+    muted,
+    incoming,
+    recentCalls,
+    logs,
+    appendLog,
+    clearLogs,
+    remoteAudioRef,
+    inCall,
+    isRegistered,
+    callDisabled,
+    dtmfEnabled,
+    connect,
+    disconnect,
+    placeCallNow,
+    answerIncoming,
+    hangup,
+    toggleMute,
+    canSendDtmf,
+    sendDtmfDigit,
+    sendDtmfSeq,
+  } = useSoftphone();
+
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [callElapsed, setCallElapsed] = useState(0);
   const [showDtmfPad, setShowDtmfPad] = useState(false);
   const [dtmfDigits, setDtmfDigits] = useState("");
   const [transferFlow, setTransferFlow] = useState<"idle" | "pick-type" | "dial-extension">("idle");
-  const [transferKind, setTransferKind] = useState<"consult" | "blind" | "return" | null>(null);
+  const [transferKind, setTransferKind] = useState<TransferKind | null>(null);
   const [transferBuffer, setTransferBuffer] = useState("");
   const [historyFilter, setHistoryFilter] = useState("");
   const [sidebarTab, setSidebarTab] = useState<"history" | "logs">("history");
   const [mobilePanel, setMobilePanel] = useState<"history" | "logs" | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
-
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const clientRef = useRef<VertoClient | null>(null);
-  const ringRef = useRef<IncomingRingTone | null>(null);
-  const inCall = callState === "dialing" || callState === "early-media" || callState === "active";
-  const isRegistered = registrationState === "registered";
-
-  const accountKey = useMemo(
-    () => settings.loginUserOnly
-      ? settings.username.trim()
-      : `${settings.username.trim()}@${settings.domain.trim()}`,
-    [settings.username, settings.domain, settings.loginUserOnly],
-  );
 
   const filteredCalls = useMemo(() => {
     if (!historyFilter.trim()) return recentCalls;
@@ -233,62 +129,6 @@ function App() {
       (c) => c.name.toLowerCase().includes(q) || c.number.includes(q),
     );
   }, [recentCalls, historyFilter]);
-
-  const loadHistory = async (account: string) => {
-    const rows = await db.calls
-      .where("account")
-      .equals(account)
-      .reverse()
-      .sortBy("createdAt");
-
-    setRecentCalls(rows.slice(0, 50));
-  };
-
-  const appendLog = (line: string) => {
-    setLogs((prev) => [...prev, new Date().toLocaleTimeString() + " " + line].slice(-200));
-  };
-
-  const pushRecentCall = (
-    direction: CallRecord["direction"],
-    dialNumber: string,
-    status: string,
-    name?: string,
-  ) => {
-    const clean = dialNumber.trim();
-
-    if (!clean) {
-      return;
-    }
-
-    const record: CallRecord = {
-      id: randomId(),
-      account: accountKey,
-      number: clean,
-      name: name?.trim() || clean,
-      direction,
-      at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status,
-      createdAt: Date.now(),
-    };
-
-    db.calls.add(record);
-
-    setRecentCalls((prev) => [record, ...prev].slice(0, 50));
-  };
-
-  const callDisabled = useMemo(
-    () =>
-      registrationState !== "registered" ||
-      callState === "dialing" ||
-      callState === "early-media" ||
-      callState === "active",
-    [registrationState, callState],
-  );
-
-  const dtmfEnabled = useMemo(
-    () => callState !== "idle" || incoming !== null,
-    [callState, incoming],
-  );
 
   useEffect(() => {
     if (callTimerRef.current) {
@@ -344,7 +184,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!dtmfEnabled || !clientRef.current?.canSendDtmf()) {
+      if (!dtmfEnabled || !canSendDtmf()) {
         return;
       }
 
@@ -388,7 +228,7 @@ function App() {
       }
 
       e.preventDefault();
-      clientRef.current.sendDtmf(key);
+      sendDtmfDigit(key);
 
       if (showDtmfPad) {
         setDtmfDigits((prev) => prev + key);
@@ -398,7 +238,7 @@ function App() {
     window.addEventListener("keydown", onKeyDown);
 
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dtmfEnabled, inCall, showDtmfPad, transferFlow]);
+  }, [dtmfEnabled, inCall, showDtmfPad, transferFlow, canSendDtmf, sendDtmfDigit]);
 
   useEffect(() => {
     const refreshDevices = async () => {
@@ -420,223 +260,18 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    writeMedia({
-      audioInputDeviceId: settings.audioInputDeviceId,
-      audioOutputDeviceId: settings.audioOutputDeviceId,
-    });
-  }, [settings.audioInputDeviceId, settings.audioOutputDeviceId]);
-
-  useEffect(() => {
-    if (persistedSessionAutoConnectStarted) return;
-
-    if (!hasPersistedSession(settings)) return;
-
-    persistedSessionAutoConnectStarted = true;
-    void connect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional once on mount from persisted session
-  }, []);
-
-  useEffect(() => {
-    const el = remoteAudioRef.current;
-
-    if (!el || !settings.audioOutputDeviceId) return;
-
-    const anyEl = el as HTMLAudioElement & {
-      setSinkId?: (id: string) => Promise<void>;
-    };
-
-    if (typeof anyEl.setSinkId !== "function") return;
-
-    anyEl.setSinkId(settings.audioOutputDeviceId).catch((error) => {
-      appendLog(`setSinkId failed: ${String(error)}`);
-    });
-  }, [settings.audioOutputDeviceId]);
-
-  useEffect(() => {
-    if (callState !== "ringing" || !incoming) {
-      ringRef.current?.stop();
-      ringRef.current = null;
-
-      return;
-    }
-
-    const ring = new IncomingRingTone();
-
-    ringRef.current = ring;
-    void ring.start().catch(() => undefined);
-
-    return () => {
-      ring.stop();
-
-      if (ringRef.current === ring) {
-        ringRef.current = null;
-      }
-    };
-  }, [callState, incoming]);
-
-  const connect = async () => {
-    setLogs([]);
-
-    if (clientRef.current) {
-      clientRef.current.disconnect();
-      clientRef.current = null;
-    }
-
-    writeSession({
-      websocketUrl: settings.websocketUrl,
-      domain: settings.domain,
-      username: settings.username,
-      password: settings.password,
-      loginUserOnly: settings.loginUserOnly,
-    });
-
-    const client = new VertoClient(
-      {
-        websocketUrl: settings.websocketUrl,
-        domain: settings.domain,
-        username: settings.username,
-        password: settings.password,
-        callerIdName: settings.username,
-        loginUserOnly: settings.loginUserOnly,
-        audioInputDeviceId: settings.audioInputDeviceId || undefined,
-      },
-      {
-        onRegistrationState: (state, reason) => {
-          setRegistrationState(state);
-
-          if (reason) appendLog(`register ${state}: ${reason}`);
-          else appendLog(`register ${state}`);
-
-          if (state === "registered") {
-            loadHistory(accountKey);
-          }
-        },
-        onCallState: (state, reason) => {
-          setCallState(state);
-
-          if (reason) appendLog(`call ${state}: ${reason}`);
-          else appendLog(`call ${state}`);
-
-          if (state === "idle") {
-            setIncoming(null);
-            setNumber('')
-          }
-        },
-        onIncomingCall: (call) => {
-          setIncoming(call);
-          pushRecentCall("incoming", call.callerNumber, "ringing", call.callerName);
-          appendLog(`incoming ${call.callerNumber}`);
-        },
-        onRemoteStream: (stream) => {
-          const el = remoteAudioRef.current;
-
-          if (!el) return;
-
-          el.srcObject = stream;
-          void el.play().catch(() => {
-            appendLog("remote stream ready, click page to allow autoplay");
-          });
-        },
-        onLog: appendLog,
-      },
-    );
-
-    clientRef.current = client;
-
-    try {
-      await client.connect();
-    } catch (error) {
-      appendLog(`connect failed: ${String(error)}`);
-    }
-  };
-
-  const disconnect = () => {
-    if (clientRef.current) {
-      clientRef.current.disconnect();
-      clientRef.current = null;
-    }
-
-    clearSessionStorage();
-    persistedSessionAutoConnectStarted = false;
-    setSettings((prev) => ({
-      ...defaultSettings,
-      audioInputDeviceId: prev.audioInputDeviceId,
-      audioOutputDeviceId: prev.audioOutputDeviceId,
-    }));
-
-    setRegistrationState("disconnected");
-    setCallState("idle");
-    setMuted(false);
-    setIncoming(null);
-    appendLog("disconnected by user");
-  };
-
-  const placeCallNow = async () => {
-    const dialNumber = number.trim();
-
-    if (!dialNumber) {
-      appendLog("call skipped: destination is empty");
-
-      return;
-    }
-
-    pushRecentCall("outgoing", dialNumber, "dialing");
-
-    try {
-      await clientRef.current?.call(dialNumber);
-    } catch (error) {
-      appendLog(`call failed: ${String(error)}`);
-    }
-  };
-
   const placeCall = async (event: FormEvent) => {
     event.preventDefault();
     await placeCallNow();
   };
 
   const answerCall = async () => {
-    try {
-      if (incoming) {
-        setNumber(incoming.callerNumber);
-      }
-
-      await clientRef.current?.answer();
-      setIncoming(null);
-    } catch (error) {
-      appendLog(`answer failed: ${String(error)}`);
-    }
-  };
-
-  const hangup = () => clientRef.current?.hangup();
-
-  const toggleMute = () => {
-    const next = !muted;
-
-    setMuted(next);
-    clientRef.current?.setMuted(next);
+    await answerIncoming();
   };
 
   const sendPadDtmf = (digit: string) => {
-    clientRef.current?.sendDtmf(digit);
+    sendDtmfDigit(digit);
     setDtmfDigits((prev) => prev + digit);
-  };
-
-  const TRANSFER_SHORTCODE = {
-    consult: "*95",
-    blind: "*96",
-    return: "*98",
-  } as const;
-
-  type TransferKind = keyof typeof TRANSFER_SHORTCODE;
-
-  const TRANSFER_META: Record<
-    TransferKind,
-    { title: string; subtitle: string }
-  > = {
-    consult: { title: "Consult transfer", subtitle: "Shortcode *95 — enter extension" },
-    blind: { title: "Blind transfer", subtitle: "Shortcode *96 — enter extension" },
-    return: { title: "Return transfer", subtitle: "Shortcode *98 — enter extension" },
   };
 
   const closeTransferFlow = () => {
@@ -667,16 +302,8 @@ function App() {
 
     appendLog(`transfer ${transferKind}: ${sequence}`);
 
-    const client = clientRef.current;
-
-    if (!client) {
-      appendLog("transfer: no active client");
-
-      return;
-    }
-
     try {
-      await client.sendDtmfSequence(sequence);
+      await sendDtmfSeq(sequence);
       closeTransferFlow();
     } catch (error) {
       appendLog(`transfer sequence failed: ${String(error)}`);
@@ -684,8 +311,8 @@ function App() {
   };
 
   const appendDialDigit = (digit: string) => {
-    if (dtmfEnabled && clientRef.current?.canSendDtmf()) {
-      clientRef.current.sendDtmf(digit);
+    if (dtmfEnabled && canSendDtmf()) {
+      sendDtmfDigit(digit);
 
       return;
     }
@@ -702,21 +329,6 @@ function App() {
       return settings.domain;
     }
   };
-
-  const dialPadKeys = [
-    ["1", ""],
-    ["2", "ABC"],
-    ["3", "DEF"],
-    ["4", "GHI"],
-    ["5", "JKL"],
-    ["6", "MNO"],
-    ["7", "PQRS"],
-    ["8", "TUV"],
-    ["9", "WXYZ"],
-    ["*", ""],
-    ["0", "+"],
-    ["#", ""],
-  ];
 
   if (!isRegistered) {
     return (
@@ -829,7 +441,7 @@ function App() {
               <div className="setup-logs">
                 <div className="setup-logs-header">
                   <span>Connection logs</span>
-                  <button type="button" className="btn-inline" onClick={() => setLogs([])}>
+                  <button type="button" className="btn-inline" onClick={clearLogs}>
                     Clear
                   </button>
                 </div>
@@ -1013,7 +625,7 @@ function App() {
               <div className="sidebar-logs">
                 <div className="sidebar-logs-header">
                   {logs.length > 0 && (
-                    <button type="button" className="btn-inline" onClick={() => setLogs([])}>
+                    <button type="button" className="btn-inline" onClick={clearLogs}>
                       Clear
                     </button>
                   )}

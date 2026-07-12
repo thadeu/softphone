@@ -12,11 +12,11 @@ help:
 	@echo "  make preview       vite preview"
 	@echo "  make lint          eslint"
 	@echo "  make start         build + serve dist"
-	@echo "  make docker-build  docker build $(IMAGE):$(TAG)"
+	@echo "  make docker-build  docker build $(IMAGE):$(TAG) (host arch)"
 	@echo "  make docker-up     compose up --build -d"
 	@echo "  make docker-down   compose down"
 	@echo "  make docker-logs   compose logs -f"
-	@echo "  make docker-push   push $(IMAGE):$(TAG)"
+	@echo "  make docker-push   buildx push amd64+arm64 $(IMAGE):$(TAG)"
 
 install:
 	bun install
@@ -48,5 +48,5 @@ docker-down:
 docker-logs:
 	docker compose -f compose.yml logs -f
 
-docker-push: docker-build
-	docker push $(IMAGE):$(TAG)
+docker-push:
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(IMAGE):$(TAG) --push .

@@ -50,9 +50,9 @@ Or pull the published image:
 docker run --rm -p 8080:80 ghcr.io/thadeu/softphone:latest
 ```
 
-Image: `ghcr.io/thadeu/softphone`
+Image: `ghcr.io/thadeu/softphone` (`linux/amd64` + `linux/arm64`)
 
-CI builds and pushes on tags `v*` (and `workflow_dispatch`). See `.github/workflows/ghcr.yml`.
+CI builds and pushes multi-arch on tags `v*` (and `workflow_dispatch`). See `.github/workflows/ghcr.yml`.
 
 ## Voodu
 

@@ -1,46 +1,10 @@
-import { randomId } from "./randomId";
-
-export type RegistrationState =
-  | "disconnected"
-  | "connecting"
-  | "registered"
-  | "failed";
-
-export type CallState =
-  | "idle"
-  | "dialing"
-  | "ringing"
-  | "early-media"
-  | "active";
-
-export type IncomingCall = {
-  callId: string;
-  callerName: string;
-  callerNumber: string;
-  sdp: string;
-};
-
-export type VertoConfig = {
-  websocketUrl: string;
-  domain: string;
-  username: string;
-  password: string;
-  callerIdName?: string;
-  /**
-   * When false (default), login is sent as `user@domain`.
-   * When true, login is only `user` (some directory setups match this better).
-   */
-  loginUserOnly?: boolean;
-  audioInputDeviceId?: string;
-};
-
-export type VertoEvents = {
-  onRegistrationState: (state: RegistrationState, reason?: string) => void;
-  onCallState: (state: CallState, reason?: string) => void;
-  onIncomingCall: (call: IncomingCall) => void;
-  onRemoteStream: (stream: MediaStream) => void;
-  onLog: (line: string) => void;
-};
+import { randomId } from "@/shared/random-id";
+import type { IncomingCall } from "@/domain/entities";
+import type {
+  SoftphoneConfig,
+  SoftphoneEvents,
+  SoftphonePort,
+} from "@/domain/softphone.port";
 
 type JsonRpcMessage = {
   jsonrpc: "2.0";
@@ -93,10 +57,10 @@ function sanitizeVertoInboundOfferSdp(sdp: string): string {
   return out.join("\r\n") + "\r\n";
 }
 
-export class VertoClient {
+export class VertoClient implements SoftphonePort {
   private ws: WebSocket | null = null;
-  private readonly cfg: VertoConfig;
-  private readonly events: VertoEvents;
+  private readonly cfg: SoftphoneConfig;
+  private readonly events: SoftphoneEvents;
   private readonly sessid: string;
   private rpcId = 0;
   private pc: RTCPeerConnection | null = null;
@@ -105,7 +69,7 @@ export class VertoClient {
   private pendingIncomingCall: IncomingCall | null = null;
   private readonly pendingRequests = new Map<number, string>();
 
-  constructor(cfg: VertoConfig, events: VertoEvents) {
+  constructor(cfg: SoftphoneConfig, events: SoftphoneEvents) {
     this.cfg = cfg;
     this.events = events;
     this.sessid = randomId();
@@ -143,14 +107,12 @@ export class VertoClient {
 
     this.ws.onopen = () => {
       this.events.onLog("WebSocket connected");
-    
-      const loginStr = this.cfg.loginUserOnly
-        ? user
-        : `${user}@${domain}`;
-    
-        this.events.onLog(`login string: ${loginStr}`);
-    
-        this.send("login", {
+
+      const loginStr = this.cfg.loginUserOnly ? user : `${user}@${domain}`;
+
+      this.events.onLog(`login string: ${loginStr}`);
+
+      this.send("login", {
         login: loginStr,
         passwd: this.cfg.password,
         sessid: this.sessid,
@@ -163,8 +125,10 @@ export class VertoClient {
       this.events.onRegistrationState("disconnected");
       this.events.onCallState("idle");
       this.cleanupPeer();
-      this.events.onLog(`WebSocket disconnected (code=${evt.code} reason=${evt.reason || "n/a"} clean=${evt.wasClean})`);
-    
+      this.events.onLog(
+        `WebSocket disconnected (code=${evt.code} reason=${evt.reason || "n/a"} clean=${evt.wasClean})`,
+      );
+
       if (evt.code === 1006) {
         this.events.onLog(
           "hint 1006: host/port unreachable, ws/wss mismatch vs FreeSWITCH, firewall blocking inbound, or Verto bound to 127.0.0.1 only — from remote machine try: nc -vz HOST PORT",
@@ -279,10 +243,6 @@ export class VertoClient {
     });
   }
 
-  /**
-   * Outbound DTMF (RFC2833 / in-band per channel config) via mod_verto `verto.info`.
-   * Single digit 0-9, * or # per call (IVR typically expects one digit at a time).
-   */
   sendDtmf(digit: string): boolean {
     const d = digit.trim();
     if (!/^[\d*#]$/.test(d)) {
@@ -305,10 +265,6 @@ export class VertoClient {
     return true;
   }
 
-  /**
-   * Sends each DTMF symbol in order (e.g. *961001#) with a short gap between tones
-   * so the switch can parse feature codes reliably.
-   */
   async sendDtmfSequence(sequence: string, gapMs = 110): Promise<void> {
     for (const char of sequence) {
       const d = char.trim();
@@ -320,7 +276,6 @@ export class VertoClient {
     }
   }
 
-  /** True when a dialog exists (outbound, answered inbound, or ringing inbound). */
   canSendDtmf(): boolean {
     return this.dialogCallId() !== null;
   }
@@ -378,9 +333,9 @@ export class VertoClient {
       pc.addTrack(track, this.localStream as MediaStream);
     });
     pc.ontrack = (event) => {
-      const [stream] = event.streams;
-      if (stream) {
-        this.events.onRemoteStream(stream);
+      const [remoteStream] = event.streams;
+      if (remoteStream) {
+        this.events.onRemoteStream(remoteStream);
       }
     };
     pc.onconnectionstatechange = () => {
@@ -436,10 +391,7 @@ export class VertoClient {
       case "verto.invite": {
         const p = params as Record<string, unknown>;
         const dialog = (p.dialogParams ?? {}) as Record<string, unknown>;
-        // FS often sends callID and SDP at params top level; some builds nest under dialogParams.
-        const callId = String(
-          dialog.callID ?? p.callID ?? "",
-        ).trim();
+        const callId = String(dialog.callID ?? p.callID ?? "").trim();
         const sdp = String(p.sdp ?? "").trim();
         if (!callId || !sdp) {
           this.events.onLog(
@@ -484,10 +436,14 @@ export class VertoClient {
       }
       case "verto.bye": {
         const dialog = (params.dialogParams ?? {}) as Record<string, unknown>;
-        const byeCallId = String(dialog.callID ?? (params as Record<string, unknown>).callID ?? "").trim();
+        const byeCallId = String(
+          dialog.callID ?? (params as Record<string, unknown>).callID ?? "",
+        ).trim();
         const activeCallId = this.dialogCallId();
         if (byeCallId && activeCallId && byeCallId !== activeCallId) {
-          this.events.onLog(`verto.bye ignored: callID ${byeCallId} does not match active ${activeCallId}`);
+          this.events.onLog(
+            `verto.bye ignored: callID ${byeCallId} does not match active ${activeCallId}`,
+          );
           break;
         }
         this.events.onLog("Remote hangup");
