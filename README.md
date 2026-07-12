@@ -48,7 +48,7 @@ docker run --rm -p 8080:80 ghcr.io/thadeu/softphone:latest
 
 Image: `ghcr.io/thadeu/softphone`
 
-CI builds and pushes on `main`, tags `v*`, and `workflow_dispatch` (see `.github/workflows/ghcr.yml`).
+CI builds and pushes on tags `v*` (and `workflow_dispatch`). See `.github/workflows/ghcr.yml`.
 
 ## Voodu
 
