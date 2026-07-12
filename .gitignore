@@ -20,7 +20,6 @@
 # production
 /build
 dist
-bun.lock
 
 # misc
 .DS_Store
