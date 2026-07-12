@@ -3,6 +3,7 @@ import type {
   SoftphoneMediaSettings,
   SoftphoneSettings,
 } from "@/domain/entities";
+import { normalizeProtocol } from "@/domain/entities";
 import type { SessionStorePort } from "@/domain/session-store.port";
 
 const LEGACY_SETTINGS_KEY = "softphone.verto.settings";
@@ -10,6 +11,7 @@ const SESSION_STORAGE_KEY = "softphone.verto.session";
 const MEDIA_STORAGE_KEY = "softphone.verto.media";
 
 export const defaultSettings: SoftphoneSettings = {
+  protocol: "verto",
   websocketUrl: "",
   domain: "default",
   username: "",
@@ -25,14 +27,25 @@ function readSession(): Partial<SoftphoneCredentials> | null {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as Partial<SoftphoneCredentials>;
+    const parsed = JSON.parse(raw) as Partial<SoftphoneCredentials>;
+
+    return {
+      ...parsed,
+      protocol: normalizeProtocol(parsed.protocol),
+    };
   } catch {
     return null;
   }
 }
 
 function writeSession(creds: SoftphoneCredentials): void {
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(creds));
+  localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      ...creds,
+      protocol: normalizeProtocol(creds.protocol),
+    }),
+  );
 }
 
 function clearSession(): void {
@@ -79,6 +92,7 @@ function migrateLegacySettingsIfNeeded(): void {
 
     if (ws && user && pass.trim()) {
       writeSession({
+        protocol: normalizeProtocol(parsed.protocol),
         websocketUrl: parsed.websocketUrl,
         domain: parsed.domain,
         username: parsed.username,
@@ -108,6 +122,7 @@ export function loadSettings(): SoftphoneSettings {
     ...defaultSettings,
     ...(session ?? {}),
     ...media,
+    protocol: normalizeProtocol(session?.protocol ?? defaultSettings.protocol),
   };
 }
 
@@ -115,7 +130,11 @@ export function hasPersistedSession(s: SoftphoneSettings): boolean {
   const ws = s.websocketUrl.trim();
   const user = s.username.trim();
   const pass = s.password.trim();
-  const domainOk = s.loginUserOnly || s.domain.trim().length > 0;
+  const protocol = normalizeProtocol(s.protocol);
+  const domainOk =
+    protocol === "sip"
+      ? s.domain.trim().length > 0
+      : s.loginUserOnly || s.domain.trim().length > 0;
 
   return Boolean(ws && user && pass && domainOk);
 }

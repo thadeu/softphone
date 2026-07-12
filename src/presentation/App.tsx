@@ -337,7 +337,7 @@ function App() {
           <div className="setup-card">
             <div className="setup-header">
               <Phone size={20} />
-              <h1>Verto Configuration</h1>
+              <h1>Softphone Configuration</h1>
             </div>
 
             <div className="setup-status-banner">
@@ -348,7 +348,11 @@ function App() {
                 <strong>
                   {registrationState === "connecting" ? "Connecting..." : "Disconnected"}
                 </strong>
-                <span>Configure FreeSWITCH mod_verto below</span>
+                <span>
+                  {settings.protocol === "sip"
+                    ? "Configure Kamailio SIP (WS/WSS) below"
+                    : "Configure FreeSWITCH Verto below"}
+                </span>
               </div>
             </div>
 
@@ -361,11 +365,30 @@ function App() {
               }}
             >
               <label>
+                Server
+                <select
+                  value={settings.protocol === "sip" ? "sip" : "verto"}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      protocol: e.target.value === "sip" ? "sip" : "verto",
+                    }))
+                  }
+                >
+                  <option value="verto">FreeSWITCH</option>
+                  <option value="sip">Kamailio</option>
+                </select>
+              </label>
+              <label>
                 WebSocket URL
                 <input
                   value={settings.websocketUrl}
                   onChange={(e) => setSettings((s) => ({ ...s, websocketUrl: e.target.value }))}
-                  placeholder="wss://fs.example.com:8082"
+                  placeholder={
+                    settings.protocol === "sip"
+                      ? "ws://kamailio.example:8080"
+                      : "wss://fs.example.com:8082"
+                  }
                 />
               </label>
               <label>
@@ -373,16 +396,18 @@ function App() {
                 <input
                   value={settings.domain}
                   onChange={(e) => setSettings((s) => ({ ...s, domain: e.target.value }))}
-                  placeholder="default"
+                  placeholder={settings.protocol === "sip" ? "sip.example.com" : "default"}
                 />
                 <span className="domain-actions">
-                  <button
-                    type="button"
-                    className="btn-inline"
-                    onClick={() => setSettings((s) => ({ ...s, domain: "default" }))}
-                  >
-                    default
-                  </button>
+                  {settings.protocol !== "sip" && (
+                    <button
+                      type="button"
+                      className="btn-inline"
+                      onClick={() => setSettings((s) => ({ ...s, domain: "default" }))}
+                    >
+                      default
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-inline"
@@ -390,7 +415,7 @@ function App() {
                       setSettings((s) => ({ ...s, domain: domainFromWebSocketHost() }))
                     }
                   >
-                    from WSS
+                    from WS
                   </button>
                 </span>
               </label>
@@ -411,21 +436,34 @@ function App() {
                   placeholder="••••••••"
                 />
               </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={settings.loginUserOnly}
-                  onChange={(e) =>
-                    setSettings((s) => ({ ...s, loginUserOnly: e.target.checked }))
-                  }
-                />
-                Login as username only (no @domain)
-              </label>
+              {settings.protocol !== "sip" && (
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={settings.loginUserOnly}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, loginUserOnly: e.target.checked }))
+                    }
+                  />
+                  Login as username only (no @domain)
+                </label>
+              )}
             </form>
 
             {registrationState === "failed" && (
               <div className="setup-hint">
-                <strong>Note:</strong> Requires FreeSWITCH with <code>mod_verto</code> (WSS). If you get <code>-32001</code>, check domain and password in the directory.
+                {settings.protocol === "sip" ? (
+                  <>
+                    <strong>Note:</strong> Requires Kamailio with WebSocket + digest auth
+                    (dynamic REGISTER). Use <code>ws://</code> or <code>wss://</code> in the
+                    WebSocket URL. Check username, domain and password.
+                  </>
+                ) : (
+                  <>
+                    <strong>Note:</strong> Requires FreeSWITCH with <code>mod_verto</code>. If
+                    you get <code>-32001</code>, check domain and password in the directory.
+                  </>
+                )}
               </div>
             )}
 

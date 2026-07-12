@@ -11,6 +11,8 @@ export type CallState =
   | "early-media"
   | "active";
 
+export type SoftphoneProtocol = "verto" | "sip";
+
 export type IncomingCall = {
   callId: string;
   callerName: string;
@@ -19,6 +21,7 @@ export type IncomingCall = {
 };
 
 export type SoftphoneCredentials = {
+  protocol: SoftphoneProtocol;
   websocketUrl: string;
   domain: string;
   username: string;
@@ -43,3 +46,7 @@ export type CallRecord = {
   status: string;
   createdAt: number;
 };
+
+export function normalizeProtocol(value: unknown): SoftphoneProtocol {
+  return value === "sip" ? "sip" : "verto";
+}

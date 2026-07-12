@@ -1238,6 +1238,23 @@ input {
   font-family: inherit;
 }
 
+select {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--ink-primary);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(45, 91, 240, 0.12);
+}
+
 input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(45, 91, 240, 0.12);

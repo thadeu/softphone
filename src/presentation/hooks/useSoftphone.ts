@@ -6,8 +6,10 @@ import type {
   RegistrationState,
   SoftphoneSettings,
 } from "@/domain/entities";
-import type { SoftphonePort } from "@/domain/softphone.port";
+import { normalizeProtocol } from "@/domain/entities";
+import type { SoftphoneEvents, SoftphonePort } from "@/domain/softphone.port";
 import { VertoClient } from "@/adapters/verto/verto-client";
+import { JsSipClient } from "@/adapters/sip/jssip-client";
 import { callHistory } from "@/adapters/persistence/dexie-call-history";
 import {
   defaultSettings,
@@ -27,6 +29,28 @@ import { listCallHistory } from "@/application/list-call-history";
 import { recordCall } from "@/application/record-call";
 
 let persistedSessionAutoConnectStarted = false;
+
+function createSoftphoneClient(
+  settings: SoftphoneSettings,
+  events: SoftphoneEvents,
+): SoftphonePort {
+  const cfg = {
+    protocol: normalizeProtocol(settings.protocol),
+    websocketUrl: settings.websocketUrl,
+    domain: settings.domain,
+    username: settings.username,
+    password: settings.password,
+    loginUserOnly: settings.loginUserOnly,
+    callerIdName: settings.username,
+    audioInputDeviceId: settings.audioInputDeviceId || undefined,
+  };
+
+  if (cfg.protocol === "sip") {
+    return new JsSipClient(cfg, events);
+  }
+
+  return new VertoClient(cfg, events);
+}
 
 export function useSoftphone() {
   const [settings, setSettings] = useState<SoftphoneSettings>(loadSettings);
@@ -158,7 +182,9 @@ export function useSoftphone() {
       clientRef.current = null;
     }
 
+    const protocol = normalizeProtocol(settings.protocol);
     const creds = {
+      protocol,
       websocketUrl: settings.websocketUrl,
       domain: settings.domain,
       username: settings.username,
@@ -166,59 +192,55 @@ export function useSoftphone() {
       loginUserOnly: settings.loginUserOnly,
     };
 
-    const client = new VertoClient(
-      {
-        ...creds,
-        callerIdName: settings.username,
-        audioInputDeviceId: settings.audioInputDeviceId || undefined,
+    const events: SoftphoneEvents = {
+      onRegistrationState: (state, reason) => {
+        setRegistrationState(state);
+
+        if (reason) appendLog(`register ${state}: ${reason}`);
+        else appendLog(`register ${state}`);
+
+        if (state === "registered") {
+          void loadHistory(accountKeyRef.current);
+        }
       },
-      {
-        onRegistrationState: (state, reason) => {
-          setRegistrationState(state);
+      onCallState: (state, reason) => {
+        setCallState(state);
 
-          if (reason) appendLog(`register ${state}: ${reason}`);
-          else appendLog(`register ${state}`);
+        if (reason) appendLog(`call ${state}: ${reason}`);
+        else appendLog(`call ${state}`);
 
-          if (state === "registered") {
-            void loadHistory(accountKeyRef.current);
-          }
-        },
-        onCallState: (state, reason) => {
-          setCallState(state);
-
-          if (reason) appendLog(`call ${state}: ${reason}`);
-          else appendLog(`call ${state}`);
-
-          if (state === "idle") {
-            setIncoming(null);
-            setNumber("");
-          }
-        },
-        onIncomingCall: (call) => {
-          setIncoming(call);
-          void pushRecentCall(
-            "incoming",
-            call.callerNumber,
-            "ringing",
-            call.callerName,
-          );
-          appendLog(`incoming ${call.callerNumber}`);
-        },
-        onRemoteStream: (stream) => {
-          const el = remoteAudioRef.current;
-
-          if (!el) return;
-
-          el.srcObject = stream;
-          void el.play().catch(() => {
-            appendLog("remote stream ready, click page to allow autoplay");
-          });
-        },
-        onLog: appendLog,
+        if (state === "idle") {
+          setIncoming(null);
+          setNumber("");
+        }
       },
-    );
+      onIncomingCall: (call) => {
+        setIncoming(call);
+        void pushRecentCall(
+          "incoming",
+          call.callerNumber,
+          "ringing",
+          call.callerName,
+        );
+        appendLog(`incoming ${call.callerNumber}`);
+      },
+      onRemoteStream: (stream) => {
+        const el = remoteAudioRef.current;
+
+        if (!el) return;
+
+        el.srcObject = stream;
+        void el.play().catch(() => {
+          appendLog("remote stream ready, click page to allow autoplay");
+        });
+      },
+      onLog: appendLog,
+    };
+
+    const client = createSoftphoneClient({ ...settings, protocol }, events);
 
     clientRef.current = client;
+    appendLog(`protocol ${protocol}`);
 
     try {
       await registerSession(client, sessionStore, creds);
@@ -243,6 +265,7 @@ export function useSoftphone() {
 
     setSettings((prev) => ({
       ...defaultSettings,
+      protocol: prev.protocol,
       audioInputDeviceId: prev.audioInputDeviceId,
       audioOutputDeviceId: prev.audioOutputDeviceId,
     }));
