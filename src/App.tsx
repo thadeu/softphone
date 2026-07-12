@@ -725,7 +725,7 @@ function App() {
           <div className="setup-card">
             <div className="setup-header">
               <Phone size={20} />
-              <h1>SIP Configuration</h1>
+              <h1>Verto Configuration</h1>
             </div>
 
             <div className="setup-status-banner">
@@ -736,7 +736,7 @@ function App() {
                 <strong>
                   {registrationState === "connecting" ? "Connecting..." : "Disconnected"}
                 </strong>
-                <span>Configure your Verto settings below</span>
+                <span>Configure FreeSWITCH mod_verto below</span>
               </div>
             </div>
 
@@ -753,7 +753,7 @@ function App() {
                 <input
                   value={settings.websocketUrl}
                   onChange={(e) => setSettings((s) => ({ ...s, websocketUrl: e.target.value }))}
-                  placeholder="wss://sip.example.com:8089/ws"
+                  placeholder="wss://fs.example.com:8082"
                 />
               </label>
               <label>
@@ -813,7 +813,7 @@ function App() {
 
             {registrationState === "failed" && (
               <div className="setup-hint">
-                <strong>Note:</strong> You need a SIP server with WebSocket support (like FreeSWITCH, Asterisk, or Kamailio). If you get <code>-32001</code>, check the domain and password in your directory config.
+                <strong>Note:</strong> Requires FreeSWITCH with <code>mod_verto</code> (WSS). If you get <code>-32001</code>, check domain and password in the directory.
               </div>
             )}
 

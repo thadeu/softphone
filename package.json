@@ -16,8 +16,7 @@
     "lucide-react": "^1.8.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "serve": "^14.2.6",
-    "verto": "^0.1.1"
+    "serve": "^14.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -30,7 +29,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
-    "typescript": "~6.0.2",
+    "typescript": "7",
     "typescript-eslint": "^8.58.0",
     "vite": "^8.0.4"
   }

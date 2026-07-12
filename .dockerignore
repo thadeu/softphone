@@ -1,5 +1,8 @@
 .git
+.github
 .claude
+.voodu
+.DS_Store
 .next
 .source
 .wrangler
@@ -9,3 +12,5 @@ out
 scripts
 README.md
 dist
+infra
+*.md
