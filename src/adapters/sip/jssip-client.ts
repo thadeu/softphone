@@ -6,30 +6,12 @@ import type {
   SoftphoneEvents,
   SoftphonePort,
 } from "@/domain/softphone.port";
-
-function buildSipUri(userOrDest: string, domain: string): string {
-  const value = userOrDest.trim();
-
-  if (!value) {
-    throw new Error("SIP user/destination is empty");
-  }
-
-  if (value.startsWith("sip:")) {
-    return value;
-  }
-
-  if (value.includes("@")) {
-    return `sip:${value}`;
-  }
-
-  const host = domain.trim();
-
-  if (!host) {
-    throw new Error("SIP domain is empty");
-  }
-
-  return `sip:${value}@${host}`;
-}
+import { buildSipUri } from "./sip-uri";
+import {
+  SIP_REGISTER_EXPIRES_SEC,
+  buildRtcConfiguration,
+  resolveIceHost,
+} from "./ice-config";
 
 function mediaConstraints(audioInputDeviceId?: string): MediaStreamConstraints {
   return {
@@ -94,6 +76,7 @@ export class JsSipClient implements SoftphonePort {
       authorization_user: user,
       display_name: this.cfg.callerIdName || user,
       register: true,
+      register_expires: SIP_REGISTER_EXPIRES_SEC,
       session_timers: false,
     });
 
@@ -173,7 +156,7 @@ export class JsSipClient implements SoftphonePort {
 
     this.ua.call(target, {
       mediaConstraints: mediaConstraints(this.cfg.audioInputDeviceId),
-      pcConfig: { iceServers: [] },
+      pcConfig: this.pcConfig(),
       eventHandlers: {
         peerconnection: (e) => {
           this.bindPeerConnection(e.peerconnection);
@@ -208,9 +191,30 @@ export class JsSipClient implements SoftphonePort {
 
     this.session.answer({
       mediaConstraints: mediaConstraints(this.cfg.audioInputDeviceId),
-      pcConfig: { iceServers: [] },
+      pcConfig: this.pcConfig(),
     });
     this.events.onCallState("active");
+  }
+
+  reject(statusCode = 488): void {
+    if (!this.session) {
+      this.events.onCallState("idle");
+      return;
+    }
+
+    this.events.onLog(`SIP reject status=${statusCode} session=${this.session.id}`);
+
+    try {
+      this.session.terminate({
+        status_code: statusCode,
+        reason_phrase: statusCode === 488 ? "Not Acceptable Here" : undefined,
+      });
+    } catch (error) {
+      this.events.onLog(`SIP reject failed: ${String(error)}`);
+    }
+
+    this.cleanupSession();
+    this.events.onCallState("idle");
   }
 
   hangup(): void {
@@ -284,6 +288,14 @@ export class JsSipClient implements SoftphonePort {
 
   canSendDtmf(): boolean {
     return this.session !== null && !this.session.isEnded();
+  }
+
+  private pcConfig(): RTCConfiguration {
+    return buildRtcConfiguration({
+      host: resolveIceHost(this.cfg.websocketUrl, this.cfg.domain),
+      username: this.cfg.username,
+      password: this.cfg.password,
+    });
   }
 
   private attachSession(session: RTCSession, direction: "inbound" | "outbound"): void {

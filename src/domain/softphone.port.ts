@@ -23,6 +23,8 @@ export type SoftphonePort = {
   disconnect(): void;
   call(destination: string): Promise<void>;
   answer(): Promise<void>;
+  /** Decline an unanswered inbound invite (SIP: typically 488). */
+  reject(statusCode?: number): void;
   hangup(): void;
   setMuted(muted: boolean): void;
   sendDtmf(digit: string): boolean;

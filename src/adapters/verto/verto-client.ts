@@ -237,6 +237,11 @@ export class VertoClient implements SoftphonePort {
     this.events.onCallState("idle");
   }
 
+  reject(_statusCode?: number): void {
+    // Verto has no SIP status codes; decline is a bye on the pending dialog.
+    this.hangup();
+  }
+
   setMuted(muted: boolean): void {
     this.localStream?.getAudioTracks().forEach((track) => {
       track.enabled = !muted;

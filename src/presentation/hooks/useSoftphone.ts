@@ -24,6 +24,7 @@ import { disconnectSession } from "@/application/disconnect-session";
 import { placeCall as placeCallUseCase } from "@/application/place-call";
 import { answerCall as answerCallUseCase } from "@/application/answer-call";
 import { hangupCall } from "@/application/hangup-call";
+import { rejectCall } from "@/application/reject-call";
 import { sendDtmf, sendDtmfSequence } from "@/application/send-dtmf";
 import { listCallHistory } from "@/application/list-call-history";
 import { recordCall } from "@/application/record-call";
@@ -330,6 +331,11 @@ export function useSoftphone() {
     hangupCall(clientRef.current);
   }, []);
 
+  const rejectIncoming = useCallback(() => {
+    rejectCall(clientRef.current, 488);
+    setIncoming(null);
+  }, []);
+
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
       const next = !prev;
@@ -380,6 +386,7 @@ export function useSoftphone() {
     placeCallNow,
     answerIncoming,
     hangup,
+    rejectIncoming,
     toggleMute,
     canSendDtmf,
     sendDtmfDigit,

@@ -100,6 +100,7 @@ function App() {
     placeCallNow,
     answerIncoming,
     hangup,
+    rejectIncoming,
     toggleMute,
     canSendDtmf,
     sendDtmfDigit,
@@ -1006,7 +1007,7 @@ function App() {
               <p className="incoming-number">{incoming.callerNumber}</p>
             </div>
             <div className="incoming-buttons">
-              <button type="button" className="incoming-btn decline" onClick={hangup}>
+              <button type="button" className="incoming-btn decline" onClick={rejectIncoming}>
                 <PhoneOff size={24} />
                 <span>Decline</span>
               </button>

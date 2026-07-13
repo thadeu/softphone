@@ -1,7 +1,7 @@
 IMAGE ?= ghcr.io/thadeu/softphone
 TAG   ?= latest
 
-.PHONY: help install dev build preview lint start \
+.PHONY: help install dev build preview lint start test test-watch \
 	docker-build docker-up docker-down docker-logs docker-push
 
 help:
@@ -11,6 +11,8 @@ help:
 	@echo "  make build         production build"
 	@echo "  make preview       vite preview"
 	@echo "  make lint          eslint"
+	@echo "  make test          vitest run"
+	@echo "  make test-watch    vitest watch"
 	@echo "  make start         build + serve dist"
 	@echo "  make docker-build  docker build $(IMAGE):$(TAG) (host arch)"
 	@echo "  make docker-up     compose up --build -d"
@@ -32,6 +34,12 @@ preview:
 
 lint:
 	bun run lint
+
+test:
+	bun run test
+
+test-watch:
+	bun run test:watch
 
 start:
 	bun run start
