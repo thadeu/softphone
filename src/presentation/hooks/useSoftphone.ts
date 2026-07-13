@@ -85,9 +85,9 @@ export function useSoftphone() {
   const isRegistered = registrationState === "registered";
 
   const appendLog = useCallback((line: string) => {
-    setLogs((prev) =>
-      [...prev, new Date().toLocaleTimeString() + " " + line].slice(-200),
-    );
+    const stamped = `${new Date().toLocaleTimeString()} ${line}`;
+    console.log(`[softphone] ${line}`);
+    setLogs((prev) => [...prev, stamped].slice(-200));
   }, []);
 
   const loadHistory = useCallback(async (account: string) => {

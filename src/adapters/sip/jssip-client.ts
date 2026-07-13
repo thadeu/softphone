@@ -1,4 +1,4 @@
-import { UA, WebSocketInterface } from "jssip";
+import { UA, WebSocketInterface, debug as jssipDebug } from "jssip";
 import type { RTCSession } from "jssip/lib/RTCSession";
 import type { IncomingCall } from "@/domain/entities";
 import type {
@@ -12,6 +12,11 @@ import {
   buildRtcConfiguration,
   resolveIceHost,
 } from "./ice-config";
+
+/** Dump raw SIP frames (send/recv) to the browser console via the `debug` package. */
+function enableSipConsoleTrace(): void {
+  jssipDebug.enable("JsSIP:Transport");
+}
 
 function mediaConstraints(audioInputDeviceId?: string): MediaStreamConstraints {
   return {
@@ -65,9 +70,12 @@ export class JsSipClient implements SoftphonePort {
     const uri = buildSipUri(user, domain);
     const socket = new WebSocketInterface(wsUrl);
 
+    enableSipConsoleTrace();
+
     this.events.onRegistrationState("connecting");
     this.events.onLog(`SIP websocket ${wsUrl}`);
     this.events.onLog(`SIP AOR ${uri}`);
+    this.events.onLog("SIP console trace JsSIP:Transport (browser DevTools)");
 
     const ua = new UA({
       sockets: [socket],
