@@ -37,6 +37,7 @@ describe("registerSession", () => {
       username: "1001",
       password: "secret",
       loginUserOnly: false,
+      sipUserAgent: "AS-webrtc",
     };
 
     await registerSession(softphone, store, creds);

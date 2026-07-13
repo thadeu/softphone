@@ -78,7 +78,14 @@ export class JsSipClient implements SoftphonePort {
       register: true,
       register_expires: SIP_REGISTER_EXPIRES_SEC,
       session_timers: false,
+      ...(this.cfg.sipUserAgent.trim()
+        ? { user_agent: this.cfg.sipUserAgent.trim() }
+        : {}),
     });
+
+    if (this.cfg.sipUserAgent.trim()) {
+      this.events.onLog(`SIP User-Agent ${this.cfg.sipUserAgent.trim()}`);
+    }
 
     ua.on("connecting", () => {
       this.events.onLog("SIP transport connecting");

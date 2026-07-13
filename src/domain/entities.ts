@@ -27,6 +27,12 @@ export type SoftphoneCredentials = {
   username: string;
   password: string;
   loginUserOnly: boolean;
+  /**
+   * Optional SIP User-Agent string (JsSIP `user_agent`).
+   * Some SBCs (e.g. Atende Kamailio) require a specific value such as `AS-webrtc`.
+   * Empty = library default.
+   */
+  sipUserAgent: string;
 };
 
 export type SoftphoneMediaSettings = {

@@ -42,6 +42,7 @@ function createSoftphoneClient(
     username: settings.username,
     password: settings.password,
     loginUserOnly: settings.loginUserOnly,
+    sipUserAgent: settings.sipUserAgent ?? "",
     callerIdName: settings.username,
     audioInputDeviceId: settings.audioInputDeviceId || undefined,
   };
@@ -191,6 +192,7 @@ export function useSoftphone() {
       username: settings.username,
       password: settings.password,
       loginUserOnly: settings.loginUserOnly,
+      sipUserAgent: settings.sipUserAgent ?? "",
     };
 
     const events: SoftphoneEvents = {

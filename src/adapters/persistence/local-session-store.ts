@@ -17,6 +17,7 @@ export const defaultSettings: SoftphoneSettings = {
   username: "",
   password: "",
   loginUserOnly: false,
+  sipUserAgent: "",
   audioInputDeviceId: "",
   audioOutputDeviceId: "",
 };
@@ -32,6 +33,8 @@ function readSession(): Partial<SoftphoneCredentials> | null {
     return {
       ...parsed,
       protocol: normalizeProtocol(parsed.protocol),
+      sipUserAgent:
+        typeof parsed.sipUserAgent === "string" ? parsed.sipUserAgent : "",
     };
   } catch {
     return null;
@@ -98,6 +101,7 @@ function migrateLegacySettingsIfNeeded(): void {
         username: parsed.username,
         password: parsed.password,
         loginUserOnly: parsed.loginUserOnly,
+        sipUserAgent: typeof parsed.sipUserAgent === "string" ? parsed.sipUserAgent : "",
       });
     }
 
@@ -123,6 +127,8 @@ export function loadSettings(): SoftphoneSettings {
     ...(session ?? {}),
     ...media,
     protocol: normalizeProtocol(session?.protocol ?? defaultSettings.protocol),
+    sipUserAgent:
+      typeof session?.sipUserAgent === "string" ? session.sipUserAgent : "",
   };
 }
 

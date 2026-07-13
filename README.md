@@ -51,6 +51,7 @@ Example (Kamailio SBC):
 | Domain | `yourserver.acme.com` |
 | Username | SIP user / AOR local part (e.g. `fullNumber`) |
 | Password | digest password |
+| SIP User-Agent | optional; Atende Kamailio expects `AS-webrtc` |
 
 Behavior:
 

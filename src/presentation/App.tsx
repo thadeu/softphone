@@ -437,6 +437,18 @@ function App() {
                   placeholder="••••••••"
                 />
               </label>
+              {settings.protocol === "sip" && (
+                <label>
+                  SIP User-Agent
+                  <input
+                    value={settings.sipUserAgent}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, sipUserAgent: e.target.value }))
+                    }
+                    placeholder="e.g. AS-webrtc (required by some SBCs)"
+                  />
+                </label>
+              )}
               {settings.protocol !== "sip" && (
                 <label className="checkbox-row">
                   <input
@@ -457,7 +469,8 @@ function App() {
                   <>
                     <strong>Note:</strong> Requires Kamailio with WebSocket + digest auth
                     (dynamic REGISTER). Use <code>ws://</code> or <code>wss://</code> in the
-                    WebSocket URL. Check username, domain and password.
+                    WebSocket URL. Some SBCs filter by SIP User-Agent (Atende:{" "}
+                    <code>AS-webrtc</code>).
                   </>
                 ) : (
                   <>
