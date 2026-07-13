@@ -13,6 +13,8 @@ Browser softphone (React + Vite). Two signaling backends behind the same UI:
 
 Static SPA served by nginx in production (`ghcr.io/thadeu/softphone`).
 
+![Softphone login / configuration](docs/screenshots/login.png)
+
 ## Requirements
 
 - [Bun](https://bun.sh)
