@@ -40,13 +40,13 @@ Open the app → choose **FreeSWITCH** or **Kamailio** → WebSocket URL, domain
 
 Dynamic REGISTER with username + password (digest). WebSocket URL is **not hardcoded** — use `ws://` or `wss://` as your SBC exposes.
 
-Example (Atende-style SBC):
+Example (Kamailio SBC):
 
 | Field | Example |
 |---|---|
 | Server | Kamailio |
-| WebSocket URL | `wss://instance101.example.com` (or `ws://host:8080` in lab) |
-| Domain | `instance101.example.com` |
+| WebSocket URL | `wss://yourserver.acme.com` (or `ws://host:8080` in lab) |
+| Domain | `yourserver.acme.com` |
 | Username | SIP user / AOR local part (e.g. `fullNumber`) |
 | Password | digest password |
 
@@ -55,10 +55,10 @@ Behavior:
 - `REGISTER` → binding no `usrloc`
 - Inbound `INVITE` → ringing UI → **Answer** (`200`) or **Decline** (`488`)
 - Active call hangup → SIP `BYE` / `terminate`
-- ICE: STUN (Google/Twilio) + TURN `turn:{host}:80` udp/tcp (user/pass = login creds), aligned with Atende voip-app
+- ICE: STUN (Google/Twilio) + TURN `turn:{host}:80` udp/tcp (user/pass = login creds), aligned with auth voip-app
 - `register_expires`: 15s
 
-Outbound dialing in Kamailio mode uses JsSIP `INVITE` from the browser. Atende production outbound is dialer-API → INVITE back to the agent; use **FreeSWITCH** for Verto outbound as today.
+Outbound dialing in Kamailio mode uses JsSIP `INVITE` from the browser. Your production outbound is dialer-API → INVITE back to the agent; use **FreeSWITCH** for Verto outbound as today.
 
 ## Make targets
 
